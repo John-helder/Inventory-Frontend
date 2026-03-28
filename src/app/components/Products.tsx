@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, Save, X, Package, Layers, DollarSign } from "lucide-react";
 import { RawMaterial } from "./RawMaterials";
+import { getProducts, createProduct } from "../../services/productService";
 
 export interface Product {
   id: string;
@@ -8,7 +9,7 @@ export interface Product {
   descricao: string;
   categoria: string;
   precoVenda: number;
-  tempoProducao: number; // em minutos
+  tempoProducao: number; 
   materiais: ProductRawMaterial[];
 }
 
@@ -34,36 +35,58 @@ export function Products() {
   const [materialQuantity, setMaterialQuantity] = useState(0);
 
   useEffect(() => {
-    const storedProducts = localStorage.getItem("products");
+  async function loadProducts() {
+    try {
+      const data = await getProducts();
+      setProducts(data);
+    } catch (error) {
+      console.error("Erro ao carregar produtos", error);
+    }
+  }
+
+  loadProducts();
+}, []);
+
+
+  useEffect(() => {
+    
     const storedMaterials = localStorage.getItem("rawMaterials");
 
-    if (storedProducts) {
-      setProducts(JSON.parse(storedProducts));
-    }
     if (storedMaterials) {
       setRawMaterials(JSON.parse(storedMaterials));
     }
   }, []);
 
-  const saveProducts = (newProducts: Product[]) => {
-    setProducts(newProducts);
-    localStorage.setItem("products", JSON.stringify(newProducts));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingId) {
       const updated = products.map((p) =>
         p.id === editingId ? { ...formData, id: editingId } : p
       );
-      saveProducts(updated);
+      
+      setProducts(updated);
       setEditingId(null);
     } else {
-      const newProduct: Product = {
-        ...formData,
-        id: Date.now().toString(),
-      };
-      saveProducts([...products, newProduct]);
+      try {
+        const payload = {
+          name: formData.nome,
+          code: `PRD-${Date.now()}`,
+          value: formData.precoVenda
+        };
+
+      const createdProduct = await createProduct(payload);
+
+      setProducts((prev) => [
+        ...prev,
+        {
+          ...formData,
+          id: createdProduct.id || Date.now().toString()
+        }
+      ]);
+    } catch (error) {
+      console.error("Erro ao criar produto", error);
+    }
+
     }
     resetForm();
   };
@@ -83,7 +106,8 @@ export function Products() {
 
   const handleDelete = (id: string) => {
     if (confirm("Tem certeza que deseja excluir este produto?")) {
-      saveProducts(products.filter((p) => p.id !== id));
+      
+      setProducts(products.filter((p) => p.id !== id));
     }
   };
 
@@ -138,19 +162,24 @@ export function Products() {
     return rawMaterials.find((m) => m.id === materialId)?.unidade || "";
   };
 
-  const calculateProductCost = (product: Product) => {
-    return product.materiais.reduce((total, pm) => {
-      const material = rawMaterials.find((m) => m.id === pm.materialId);
-      return total + (material ? material.precoUnitario * pm.quantidade : 0);
-    }, 0);
-  };
+ const calculateProductCost = (product: Product) => {
+  if (!product || !product.materiais) return 0;
+
+  return product.materiais.reduce((total, pm) => {
+    const material = rawMaterials?.find((m) => m.id === pm.materialId);
+
+    if (!material) return total;
+
+    return total + material.precoUnitario * pm.quantidade;
+  }, 0);
+};
 
   const canProduce = (product: Product) => {
-    return product.materiais.every((pm) => {
-      const material = rawMaterials.find((m) => m.id === pm.materialId);
-      return material && material.quantidade >= pm.quantidade;
-    });
-  };
+  return (product.materiais ?? []).every((pm) => {
+    const material = rawMaterials.find((m) => m.id === pm.materialId);
+    return material && material.quantidade >= pm.quantidade;
+  });
+};
 
   const handleProduce = (product: Product) => {
     if (!canProduce(product)) {
@@ -159,7 +188,6 @@ export function Products() {
     }
 
     if (confirm(`Deseja produzir 1 unidade de ${product.nome}?`)) {
-      // Atualizar estoque de matérias-primas
       const updatedMaterials = rawMaterials.map((material) => {
         const productMaterial = product.materiais.find((pm) => pm.materialId === material.id);
         if (productMaterial) {
@@ -480,7 +508,7 @@ export function Products() {
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Preço de Venda:</span>
-                    <span className="font-medium text-gray-900">R$ {product.precoVenda.toFixed(2)}</span>
+                    <span className="font-medium text-gray-900">R$ {(product.precoVenda ?? 0).toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Lucro:</span>
@@ -497,7 +525,7 @@ export function Products() {
                 <div className="border-t border-gray-200 pt-3">
                   <p className="text-xs font-medium text-gray-500 mb-2">MATÉRIAS-PRIMAS:</p>
                   <div className="space-y-1">
-                    {product.materiais.map((pm) => {
+                    {(product.materiais ?? []).map((pm) => {
                       const material = rawMaterials.find((m) => m.id === pm.materialId);
                       const hasEnough = material && material.quantidade >= pm.quantidade;
                       return (

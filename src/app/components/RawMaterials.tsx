@@ -1,143 +1,115 @@
 import { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, Save, X, AlertTriangle, Package } from "lucide-react";
+import {
+  getRawMaterials,
+  createRawMaterial,
+  updateRawMaterial,
+  deleteRawMaterial,
+} from "../../services/rawMaterialService";
 
 export interface RawMaterial {
-  id: string;
-  nome: string;
-  categoria: string;
-  quantidade: number;
-  quantidadeMinima: number;
-  unidade: string;
-  localizacao: string;
-  precoUnitario: number;
+  id: number;
+  code: string;
+  name: string;
+  stockQuantity: number;
+  category: string;
+  minimumQuantity: number;
+  unit: string;
+  location: string;
+  unitPrice: number;
 }
+
+interface RawMaterialForm {
+  code: string;
+  name: string;
+  quantity: number;
+  category: string;
+  minimumQuantity: number;
+  unit: string;
+  location: string;
+  unitPrice: number;
+}
+
+const emptyForm: RawMaterialForm = {
+  code: "",
+  name: "",
+  quantity: 0,
+  category: "",
+  minimumQuantity: 0,
+  unit: "unid",
+  location: "",
+  unitPrice: 0,
+};
 
 export function RawMaterials() {
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Omit<RawMaterial, "id">>({
-    nome: "",
-    categoria: "",
-    quantidade: 0,
-    quantidadeMinima: 0,
-    unidade: "unid",
-    localizacao: "",
-    precoUnitario: 0,
-  });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<RawMaterialForm>(emptyForm);
 
   useEffect(() => {
-    const stored = localStorage.getItem("rawMaterials");
-    if (stored) {
-      setMaterials(JSON.parse(stored));
-    } else {
-      // Dados iniciais
-      const initialData: RawMaterial[] = [
-        {
-          id: "1",
-          nome: "Parafusos M6 x 20mm",
-          categoria: "Fixadores",
-          quantidade: 15420,
-          quantidadeMinima: 10000,
-          unidade: "unid",
-          localizacao: "A-12",
-          precoUnitario: 0.15,
-        },
-        {
-          id: "2",
-          nome: "Rolamentos 6204",
-          categoria: "Componentes",
-          quantidade: 850,
-          quantidadeMinima: 1000,
-          unidade: "unid",
-          localizacao: "B-05",
-          precoUnitario: 12.5,
-        },
-        {
-          id: "3",
-          nome: "Tinta Industrial Azul",
-          categoria: "Acabamento",
-          quantidade: 245,
-          quantidadeMinima: 200,
-          unidade: "L",
-          localizacao: "C-18",
-          precoUnitario: 45.0,
-        },
-        {
-          id: "4",
-          nome: "Chapas de Aço 2mm",
-          categoria: "Matéria-Prima",
-          quantidade: 89,
-          quantidadeMinima: 150,
-          unidade: "unid",
-          localizacao: "D-03",
-          precoUnitario: 85.0,
-        },
-      ];
-      setMaterials(initialData);
-      localStorage.setItem("rawMaterials", JSON.stringify(initialData));
-    }
+    loadMaterials();
   }, []);
 
-  const saveMaterials = (newMaterials: RawMaterial[]) => {
-    setMaterials(newMaterials);
-    localStorage.setItem("rawMaterials", JSON.stringify(newMaterials));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingId) {
-      const updated = materials.map((m) =>
-        m.id === editingId ? { ...formData, id: editingId } : m
-      );
-      saveMaterials(updated);
-      setEditingId(null);
-    } else {
-      const newMaterial: RawMaterial = {
-        ...formData,
-        id: Date.now().toString(),
-      };
-      saveMaterials([...materials, newMaterial]);
+  async function loadMaterials() {
+    try {
+      const data = await getRawMaterials();
+      setMaterials(data);
+    } catch (error) {
+      console.error("Erro ao carregar matérias-primas", error);
     }
-    resetForm();
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingId) {
+        await updateRawMaterial(editingId, formData);
+      } else {
+        await createRawMaterial(formData);
+      }
+      await loadMaterials();
+      resetForm();
+    } catch (error) {
+      console.error("Erro ao salvar matéria-prima", error);
+    }
   };
 
   const handleEdit = (material: RawMaterial) => {
     setFormData({
-      nome: material.nome,
-      categoria: material.categoria,
-      quantidade: material.quantidade,
-      quantidadeMinima: material.quantidadeMinima,
-      unidade: material.unidade,
-      localizacao: material.localizacao,
-      precoUnitario: material.precoUnitario,
+      code: material.code,
+      name: material.name,
+      quantity: material.stockQuantity,
+      category: material.category,
+      minimumQuantity: material.minimumQuantity,
+      unit: material.unit,
+      location: material.location,
+      unitPrice: material.unitPrice,
     });
     setEditingId(material.id);
     setIsFormOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: number) => {
     if (confirm("Tem certeza que deseja excluir esta matéria-prima?")) {
-      saveMaterials(materials.filter((m) => m.id !== id));
+      try {
+        await deleteRawMaterial(id);
+        await loadMaterials();
+      } catch (error) {
+        console.error("Erro ao excluir matéria-prima", error);
+      }
     }
   };
 
   const resetForm = () => {
-    setFormData({
-      nome: "",
-      categoria: "",
-      quantidade: 0,
-      quantidadeMinima: 0,
-      unidade: "unid",
-      localizacao: "",
-      precoUnitario: 0,
-    });
+    setFormData(emptyForm);
     setIsFormOpen(false);
     setEditingId(null);
   };
 
   const getStockStatus = (material: RawMaterial) => {
-    const percentage = (material.quantidade / material.quantidadeMinima) * 100;
+    if (!material.minimumQuantity) return { status: "normal", label: "Normal", color: "green" };
+    const percentage = (material.stockQuantity / material.minimumQuantity) * 100;
     if (percentage < 10) return { status: "critico", label: "Crítico", color: "red" };
     if (percentage <= 20) return { status: "alerta", label: "Alerta 10%", color: "orange" };
     if (percentage <= 100) return { status: "baixo", label: "Baixo", color: "yellow" };
@@ -145,13 +117,14 @@ export function RawMaterials() {
   };
 
   const criticalMaterials = materials.filter((m) => {
-    const percentage = (m.quantidade / m.quantidadeMinima) * 100;
-    return percentage < 10;
+    if (!m.minimumQuantity) return false;
+    return (m.stockQuantity / m.minimumQuantity) * 100 < 10;
   });
 
   const alertMaterials = materials.filter((m) => {
-    const percentage = (m.quantidade / m.quantidadeMinima) * 100;
-    return percentage >= 10 && percentage <= 20;
+    if (!m.minimumQuantity) return false;
+    const pct = (m.stockQuantity / m.minimumQuantity) * 100;
+    return pct >= 10 && pct <= 20;
   });
 
   return (
@@ -168,13 +141,10 @@ export function RawMaterials() {
         >
           <Plus className="w-5 h-5" />
           <span>Nova Matéria-Prima</span>
-          <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-            Adicionar nova matéria-prima ao estoque
-          </span>
         </button>
       </div>
 
-      {/* Alertas Críticos Fixos */}
+      {/* Alertas Críticos */}
       {criticalMaterials.length > 0 && (
         <div className="bg-red-50 border-2 border-red-500 rounded-xl p-4">
           <div className="flex items-start gap-3">
@@ -184,10 +154,10 @@ export function RawMaterials() {
               <div className="mt-2 space-y-1">
                 {criticalMaterials.map((material) => (
                   <p key={material.id} className="text-sm text-red-800">
-                    <strong>{material.nome}</strong>: {material.quantidade} {material.unidade} 
-                    (Mínimo: {material.quantidadeMinima} {material.unidade}) - 
+                    <strong>{material.name}</strong>: {material.stockQuantity} {material.unit}
+                    (Mínimo: {material.minimumQuantity} {material.unit}) -
                     <strong className="ml-1">
-                      {((material.quantidade / material.quantidadeMinima) * 100).toFixed(1)}%
+                      {((material.stockQuantity / material.minimumQuantity) * 100).toFixed(1)}%
                     </strong>
                   </p>
                 ))}
@@ -197,7 +167,7 @@ export function RawMaterials() {
         </div>
       )}
 
-      {/* Alertas de Proximidade 10% */}
+      {/* Alertas de Proximidade */}
       {alertMaterials.length > 0 && (
         <div className="bg-orange-50 border border-orange-300 rounded-xl p-4">
           <div className="flex items-start gap-3">
@@ -207,10 +177,10 @@ export function RawMaterials() {
               <div className="mt-2 space-y-1">
                 {alertMaterials.map((material) => (
                   <p key={material.id} className="text-sm text-orange-800">
-                    <strong>{material.nome}</strong>: {material.quantidade} {material.unidade} 
-                    (Mínimo: {material.quantidadeMinima} {material.unidade}) - 
+                    <strong>{material.name}</strong>: {material.stockQuantity} {material.unit}
+                    (Mínimo: {material.minimumQuantity} {material.unit}) -
                     <strong className="ml-1">
-                      {((material.quantidade / material.quantidadeMinima) * 100).toFixed(1)}%
+                      {((material.stockQuantity / material.minimumQuantity) * 100).toFixed(1)}%
                     </strong>
                   </p>
                 ))}
@@ -233,7 +203,6 @@ export function RawMaterials() {
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -245,7 +214,6 @@ export function RawMaterials() {
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -257,12 +225,14 @@ export function RawMaterials() {
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div>
             <p className="text-sm text-gray-600">Valor Total Estoque</p>
             <p className="text-3xl font-semibold text-gray-900 mt-2">
-              R$ {materials.reduce((sum, m) => sum + (m.quantidade * m.precoUnitario), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R${" "}
+              {materials
+                .reduce((sum, m) => sum + m.stockQuantity * m.unitPrice, 0)
+                .toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
             </p>
           </div>
         </div>
@@ -280,67 +250,64 @@ export function RawMaterials() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nome *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Código *</label>
                   <input
                     type="text"
                     required
-                    value={formData.nome}
-                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Ex: RM001"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Ex: Parafusos M6"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Categoria *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
                   <input
                     type="text"
-                    required
-                    value={formData.categoria}
-                    onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Ex: Fixadores"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Quantidade Atual *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade Atual *</label>
                   <input
                     type="number"
                     required
                     min="0"
-                    step="0.01"
-                    value={formData.quantidade}
-                    onChange={(e) => setFormData({ ...formData, quantidade: parseFloat(e.target.value) })}
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Quantidade Mínima *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade Mínima</label>
                   <input
                     type="number"
-                    required
                     min="0"
-                    step="0.01"
-                    value={formData.quantidadeMinima}
-                    onChange={(e) => setFormData({ ...formData, quantidadeMinima: parseFloat(e.target.value) })}
+                    value={formData.minimumQuantity}
+                    onChange={(e) => setFormData({ ...formData, minimumQuantity: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Unidade *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unidade *</label>
                   <select
                     required
-                    value={formData.unidade}
-                    onChange={(e) => setFormData({ ...formData, unidade: e.target.value })}
+                    value={formData.unit}
+                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="unid">Unidade</option>
@@ -353,57 +320,42 @@ export function RawMaterials() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Localização *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Localização</label>
                   <input
                     type="text"
-                    required
-                    value={formData.localizacao}
-                    onChange={(e) => setFormData({ ...formData, localizacao: e.target.value })}
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Ex: A-12"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Preço Unitário (R$) *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preço Unitário (R$)</label>
                   <input
                     type="number"
-                    required
                     min="0"
                     step="0.01"
-                    value={formData.precoUnitario}
-                    onChange={(e) => setFormData({ ...formData, precoUnitario: parseFloat(e.target.value) })}
+                    value={formData.unitPrice}
+                    onChange={(e) => setFormData({ ...formData, unitPrice: parseFloat(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
-
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors relative group"
-                  title={editingId ? "Salvar alterações na matéria-prima" : "Criar nova matéria-prima"}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <Save className="w-5 h-5" />
                   <span>{editingId ? "Salvar" : "Criar"}</span>
-                  <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                    {editingId ? "Salvar alterações na matéria-prima" : "Criar nova matéria-prima"}
-                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors relative group"
-                  title="Cancelar e fechar o formulário"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   <X className="w-5 h-5" />
                   <span>Cancelar</span>
-                  <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                    Cancelar e fechar o formulário
-                  </span>
                 </button>
               </div>
             </form>
@@ -411,7 +363,7 @@ export function RawMaterials() {
         </div>
       )}
 
-      {/* Tabela de Materiais */}
+      {/* Tabela */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -433,68 +385,54 @@ export function RawMaterials() {
                 return (
                   <tr key={material.id} className="hover:bg-gray-50">
                     <td className="px-4 py-4">
-                      <p className="text-sm font-medium text-gray-900">{material.nome}</p>
+                      <p className="text-sm font-medium text-gray-900">{material.name}</p>
+                      <p className="text-xs text-gray-400">{material.code}</p>
                     </td>
                     <td className="px-4 py-4">
-                      <p className="text-sm text-gray-600">{material.categoria}</p>
+                      <p className="text-sm text-gray-600">{material.category}</p>
                     </td>
                     <td className="px-4 py-4">
-                      <p className="text-sm text-gray-900">
-                        {material.quantidade} {material.unidade}
-                      </p>
+                      <p className="text-sm text-gray-900">{material.stockQuantity} {material.unit}</p>
                     </td>
                     <td className="px-4 py-4">
-                      <p className="text-sm text-gray-600">
-                        {material.quantidadeMinima} {material.unidade}
-                      </p>
+                      <p className="text-sm text-gray-600">{material.minimumQuantity} {material.unit}</p>
                     </td>
                     <td className="px-4 py-4">
-                      <p className="text-sm text-gray-600">{material.localizacao}</p>
+                      <p className="text-sm text-gray-600">{material.location}</p>
                     </td>
                     <td className="px-4 py-4">
-                      <p className="text-sm text-gray-600">
-                        R$ {material.precoUnitario.toFixed(2)}
-                      </p>
+                      <p className="text-sm text-gray-600">R$ {material.unitPrice?.toFixed(2)}</p>
                     </td>
                     <td className="px-4 py-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          stockStatus.color === "red"
-                            ? "bg-red-100 text-red-800"
-                            : stockStatus.color === "orange"
-                            ? "bg-orange-100 text-orange-800"
-                            : stockStatus.color === "yellow"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-green-100 text-green-800"
-                        }`}
-                      >
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        stockStatus.color === "red" ? "bg-red-100 text-red-800" :
+                        stockStatus.color === "orange" ? "bg-orange-100 text-orange-800" :
+                        stockStatus.color === "yellow" ? "bg-yellow-100 text-yellow-800" :
+                        "bg-green-100 text-green-800"
+                      }`}>
                         {stockStatus.label}
                       </span>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {((material.quantidade / material.quantidadeMinima) * 100).toFixed(1)}%
-                      </p>
+                      {material.minimumQuantity > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {((material.stockQuantity / material.minimumQuantity) * 100).toFixed(1)}%
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEdit(material)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors relative group"
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Editar matéria-prima"
                         >
                           <Edit2 className="w-4 h-4" />
-                          <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                            Editar matéria-prima
-                          </span>
                         </button>
                         <button
                           onClick={() => handleDelete(material.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors relative group"
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Excluir matéria-prima"
                         >
                           <Trash2 className="w-4 h-4" />
-                          <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                            Excluir matéria-prima
-                          </span>
                         </button>
                       </div>
                     </td>
