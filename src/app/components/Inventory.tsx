@@ -1,104 +1,49 @@
+import { useEffect, useState } from "react";
 import { Package, AlertTriangle, TrendingDown, TrendingUp, Archive } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
-
-const inventoryItems = [
-  {
-    id: 1,
-    nome: "Parafusos M6 x 20mm",
-    categoria: "Fixadores",
-    quantidade: 15420,
-    minimo: 10000,
-    unidade: "unid",
-    status: "normal",
-    localizacao: "A-12",
-  },
-  {
-    id: 2,
-    nome: "Rolamentos 6204",
-    categoria: "Componentes",
-    quantidade: 850,
-    minimo: 1000,
-    unidade: "unid",
-    status: "baixo",
-    localizacao: "B-05",
-  },
-  {
-    id: 3,
-    nome: "Tinta Industrial Azul",
-    categoria: "Acabamento",
-    quantidade: 245,
-    minimo: 200,
-    unidade: "L",
-    status: "normal",
-    localizacao: "C-18",
-  },
-  {
-    id: 4,
-    nome: "Chapas de Aço 2mm",
-    categoria: "Matéria-Prima",
-    quantidade: 89,
-    minimo: 150,
-    unidade: "unid",
-    status: "critico",
-    localizacao: "D-03",
-  },
-  {
-    id: 5,
-    nome: "Rebites de Alumínio",
-    categoria: "Fixadores",
-    quantidade: 28500,
-    minimo: 15000,
-    unidade: "unid",
-    status: "excesso",
-    localizacao: "A-15",
-  },
-  {
-    id: 6,
-    nome: "Óleo Lubrificante Industrial",
-    categoria: "Manutenção",
-    quantidade: 340,
-    minimo: 300,
-    unidade: "L",
-    status: "normal",
-    localizacao: "E-07",
-  },
-  {
-    id: 7,
-    nome: "Correia Transportadora 10m",
-    categoria: "Componentes",
-    quantidade: 12,
-    minimo: 20,
-    unidade: "unid",
-    status: "baixo",
-    localizacao: "B-22",
-  },
-  {
-    id: 8,
-    nome: "Caixas de Embalagem Grande",
-    categoria: "Embalagem",
-    quantidade: 5800,
-    minimo: 3000,
-    unidade: "unid",
-    status: "normal",
-    localizacao: "F-11",
-  },
-];
-
-const categoryData = [
-  { categoria: "Fixadores", quantidade: 43920 },
-  { categoria: "Componentes", quantidade: 862 },
-  { categoria: "Acabamento", quantidade: 245 },
-  { categoria: "Matéria-Prima", quantidade: 89 },
-  { categoria: "Manutenção", quantidade: 340 },
-  { categoria: "Embalagem", quantidade: 5800 },
-];
+import { getRawMaterials } from "../../services/rawMaterialService";
+import { RawMaterial } from "./RawMaterials";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
+type StockStatus = "critico" | "baixo" | "normal" | "excesso";
+
+function getStockStatus(item: RawMaterial): StockStatus {
+  if (!item.minimumQuantity) return "normal";
+  const percentage = (item.stockQuantity / item.minimumQuantity) * 100;
+  if (percentage < 10) return "critico";
+  if (percentage <= 100) return "baixo";
+  if (percentage <= 150) return "normal";
+  return "excesso";
+}
+
 export function Inventory() {
-  const critico = inventoryItems.filter((item) => item.status === "critico").length;
-  const baixo = inventoryItems.filter((item) => item.status === "baixo").length;
-  const normal = inventoryItems.filter((item) => item.status === "normal").length;
+  const [items, setItems] = useState<RawMaterial[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await getRawMaterials();
+        setItems(data);
+      } catch (error) {
+        console.error("Erro ao carregar estoque", error);
+      }
+    }
+    load();
+  }, []);
+
+  const critico = items.filter((i) => getStockStatus(i) === "critico").length;
+  const baixo = items.filter((i) => getStockStatus(i) === "baixo").length;
+  const normal = items.filter((i) => getStockStatus(i) === "normal").length;
+
+  // agrupa por categoria para o gráfico
+  const categoryData = Object.entries(
+    items.reduce((acc, item) => {
+      const cat = item.category || "Sem categoria";
+      acc[cat] = (acc[cat] || 0) + item.stockQuantity;
+      return acc;
+    }, {} as Record<string, number>)
+  ).map(([categoria, quantidade]) => ({ categoria, quantidade }));
 
   return (
     <div className="space-y-6">
@@ -113,16 +58,13 @@ export function Inventory() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Total de Itens</p>
-              <p className="text-3xl font-semibold text-gray-900 mt-2">
-                {inventoryItems.length}
-              </p>
+              <p className="text-3xl font-semibold text-gray-900 mt-2">{items.length}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <Package className="w-6 h-6 text-blue-600" />
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -134,7 +76,6 @@ export function Inventory() {
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -146,7 +87,6 @@ export function Inventory() {
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -168,15 +108,9 @@ export function Inventory() {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="categoria" stroke="#6b7280" />
             <YAxis stroke="#6b7280" />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#fff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-              }}
-            />
+            <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} />
             <Bar dataKey="quantidade" name="Quantidade" radius={[8, 8, 0, 0]}>
-              {categoryData.map((entry, index) => (
+              {categoryData.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Bar>
@@ -193,86 +127,70 @@ export function Inventory() {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Item
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Categoria
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quantidade
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estoque Mínimo
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Localização
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantidade</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estoque Mínimo</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Localização</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {inventoryItems.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <p className="text-sm font-medium text-gray-900">{item.nome}</p>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <p className="text-sm text-gray-600">{item.categoria}</p>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <p className="text-sm font-medium text-gray-900">
-                      {item.quantidade.toLocaleString()} {item.unidade}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <p className="text-sm text-gray-600">
-                      {item.minimo.toLocaleString()} {item.unidade}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <p className="text-sm text-gray-600">{item.localizacao}</p>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      {item.status === "critico" && (
-                        <>
-                          <AlertTriangle className="w-4 h-4 text-red-600" />
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            Crítico
-                          </span>
-                        </>
-                      )}
-                      {item.status === "baixo" && (
-                        <>
-                          <TrendingDown className="w-4 h-4 text-yellow-600" />
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            Baixo
-                          </span>
-                        </>
-                      )}
-                      {item.status === "normal" && (
-                        <>
-                          <Archive className="w-4 h-4 text-green-600" />
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Normal
-                          </span>
-                        </>
-                      )}
-                      {item.status === "excesso" && (
-                        <>
-                          <TrendingUp className="w-4 h-4 text-blue-600" />
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            Excesso
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {items.map((item) => {
+                const status = getStockStatus(item);
+                return (
+                  <tr key={item.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                      <p className="text-xs text-gray-400">{item.code}</p>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <p className="text-sm text-gray-600">{item.category || "—"}</p>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <p className="text-sm font-medium text-gray-900">
+                        {item.stockQuantity.toLocaleString()} {item.unit}
+                      </p>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <p className="text-sm text-gray-600">
+                        {item.minimumQuantity?.toLocaleString() || "—"} {item.unit}
+                      </p>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <p className="text-sm text-gray-600">{item.location || "—"}</p>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        {status === "critico" && (
+                          <>
+                            <AlertTriangle className="w-4 h-4 text-red-600" />
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Crítico</span>
+                          </>
+                        )}
+                        {status === "baixo" && (
+                          <>
+                            <TrendingDown className="w-4 h-4 text-yellow-600" />
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Baixo</span>
+                          </>
+                        )}
+                        {status === "normal" && (
+                          <>
+                            <Archive className="w-4 h-4 text-green-600" />
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Normal</span>
+                          </>
+                        )}
+                        {status === "excesso" && (
+                          <>
+                            <TrendingUp className="w-4 h-4 text-blue-600" />
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Excesso</span>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
