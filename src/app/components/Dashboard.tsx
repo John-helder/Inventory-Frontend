@@ -1,6 +1,9 @@
 import { TrendingUp, TrendingDown, Activity, Package, AlertTriangle, CheckCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState } from "react"; 
 import { Link } from "react-router";
+import { getRawMaterials } from "../../services/rawMaterialService";
+import { RawMaterial } from "./RawMaterials";
+
 import {
   LineChart,
   Line,
@@ -13,14 +16,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-
-interface RawMaterial {
-  id: string;
-  nome: string;
-  quantidade: number;
-  quantidadeMinima: number;
-  unidade: string;
-}
 
 const productionData = [
   { hora: "00:00", producao: 145, meta: 150 },
@@ -49,21 +44,27 @@ export function Dashboard() {
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
 
   useEffect(() => {
-    const stored = localStorage.getItem("rawMaterials");
-    if (stored) {
-      setRawMaterials(JSON.parse(stored));
+  async function load() {
+    try {
+      const data = await getRawMaterials();
+      setRawMaterials(data);
+    } catch (error) {
+      console.error("Erro ao carregar matérias-primas", error);
     }
-  }, []);
+  }
+  load();
+}, []);
 
   const criticalMaterials = rawMaterials.filter((m) => {
-    const percentage = (m.quantidade / m.quantidadeMinima) * 100;
-    return percentage < 10;
-  });
+  if (!m.minimumQuantity) return false;
+  return (m.stockQuantity / m.minimumQuantity) * 100 < 10;
+});
 
-  const alertMaterials = rawMaterials.filter((m) => {
-    const percentage = (m.quantidade / m.quantidadeMinima) * 100;
-    return percentage >= 10 && percentage <= 20;
-  });
+const alertMaterials = rawMaterials.filter((m) => {
+  if (!m.minimumQuantity) return false;
+  const pct = (m.stockQuantity / m.minimumQuantity) * 100;
+  return pct >= 10 && pct <= 20;
+});
 
   return (
     <div className="space-y-6">
@@ -91,10 +92,10 @@ export function Dashboard() {
               <div className="space-y-1">
                 {criticalMaterials.map((material) => (
                   <p key={material.id} className="text-sm text-red-800">
-                    <strong>{material.nome}</strong>: {material.quantidade} {material.unidade} 
-                    (Mínimo: {material.quantidadeMinima} {material.unidade}) - 
+                    <strong>{material.name}</strong>: {material.stockQuantity} {material.unit}
+                    (Mínimo: {material.minimumQuantity} {material.unit}) -
                     <strong className="ml-1">
-                      {((material.quantidade / material.quantidadeMinima) * 100).toFixed(1)}%
+                      {((material.stockQuantity / material.minimumQuantity!) * 100).toFixed(1)}%
                     </strong>
                   </p>
                 ))}
@@ -123,10 +124,10 @@ export function Dashboard() {
               <div className="space-y-1">
                 {alertMaterials.map((material) => (
                   <p key={material.id} className="text-sm text-orange-800">
-                    <strong>{material.nome}</strong>: {material.quantidade} {material.unidade} 
-                    (Mínimo: {material.quantidadeMinima} {material.unidade}) - 
+                    <strong>{material.name}</strong>: {material.stockQuantity} {material.unit}
+                    (Mínimo: {material.minimumQuantity} {material.unit}) -
                     <strong className="ml-1">
-                      {((material.quantidade / material.quantidadeMinima) * 100).toFixed(1)}%
+                      {((material.stockQuantity / material.minimumQuantity!) * 100).toFixed(1)}%
                     </strong>
                   </p>
                 ))}
