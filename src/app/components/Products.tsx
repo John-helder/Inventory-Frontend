@@ -8,10 +8,7 @@ import {
   deleteProduct,
 } from "../../services/productService";
 import {
-  getRawMaterials,
-  createRawMaterial as createProductRawMaterial,
-  deleteRawMaterial as deleteProductRawMaterial,
-} from "../../services/rawMaterialService";
+  getRawMaterials} from "../../services/rawMaterialService";
 import { apiFetch } from "../../services/api";
 
 export interface Product {
@@ -105,54 +102,59 @@ export function Products() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        code: formData.code,
-        name: formData.name,
-        value: formData.value,
-        description: formData.description,
-        category: formData.category,
-        productionTime: formData.productionTime,
-      };
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-      let productId: number;
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (isSubmitting) return;
+  setIsSubmitting(true);
+  try {
+    const payload = {
+      code: formData.code,
+      name: formData.name,
+      value: formData.value,
+      description: formData.description,
+      category: formData.category,
+      productionTime: formData.productionTime,
+    };
 
-      if (editingId) {
-        await updateProduct(editingId, payload);
-        productId = editingId;
+    let productId: number;
 
-        // remove vínculos antigos e recria
-        const existing = productRawMaterials[editingId] || [];
-        for (const rel of existing) {
-          if (rel.id) {
-            await apiFetch(`/api/product-raw-materials/${rel.id}`, { method: "DELETE" });
-          }
+    if (editingId) {
+      await updateProduct(editingId, payload);
+      productId = editingId;
+
+      const existing = productRawMaterials[editingId] || [];
+      for (const rel of existing) {
+        if (rel.id) {
+          await apiFetch(`/api/product-raw-materials/${rel.id}`, { method: "DELETE" });
         }
-      } else {
-        const created = await createProduct(payload);
-        productId = created.id;
       }
-
-      // cria vínculos com matérias-primas
-      for (const rm of formData.rawMaterials) {
-        await apiFetch("/api/product-raw-materials", {
-          method: "POST",
-          body: JSON.stringify({
-            productId,
-            rawMaterialId: rm.rawMaterialId,
-            quantityRequired: rm.quantityRequired,
-          }),
-        });
-      }
-
-      await loadProducts();
-      resetForm();
-    } catch (error) {
-      console.error("Erro ao salvar produto", error);
+    } else {
+      const created = await createProduct(payload);
+      productId = created.id;
     }
-  };
+
+    for (const rm of formData.rawMaterials) {
+      await apiFetch("/api/product-raw-materials", {
+        method: "POST",
+        body: JSON.stringify({
+          productId,
+          rawMaterialId: rm.rawMaterialId,
+          quantityRequired: rm.quantityRequired,
+        }),
+      });
+    }
+
+    resetForm();
+    await loadProducts();
+    
+  } catch (error) {
+    console.error("Erro ao salvar produto", error);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handleEdit = (product: Product) => {
     const relations = productRawMaterials[product.id] || [];
@@ -497,13 +499,18 @@ export function Products() {
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-gray-200">
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Save className="w-5 h-5" />
-                  <span>{editingId ? "Salvar" : "Criar"}</span>
-                </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  isSubmitting
+                    ? "bg-blue-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700"
+                } text-white`}
+              >
+                <Save className="w-5 h-5" />
+                <span>{isSubmitting ? "Salvando..." : editingId ? "Salvar" : "Criar"}</span>
+              </button>
                 <button
                   type="button"
                   onClick={resetForm}
