@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router";
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./components/Dashboard";
 import { Production } from "./components/Production";
@@ -7,11 +7,25 @@ import { Quality } from "./components/Quality";
 import { Maintenance } from "./components/Maintenance";
 import { RawMaterials } from "./components/RawMaterials";
 import { Products } from "./components/Products";
+import { Login } from "./components/Login";
+import { isAuthenticated } from "../services/authService";
+
+function PrivateRoute({ children }: { children: React.ReactNode }) {
+  return isAuthenticated() ? <>{children}</> : <Navigate to="/login" replace />;
+}
 
 export const router = createBrowserRouter([
   {
+    path: "/login",
+    Component: Login,
+  },
+  {
     path: "/",
-    Component: Layout,
+    element: (
+      <PrivateRoute>
+        <Layout />
+      </PrivateRoute>
+    ),
     children: [
       { index: true, Component: Dashboard },
       { path: "producao", Component: Production },

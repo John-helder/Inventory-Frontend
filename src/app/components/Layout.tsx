@@ -1,10 +1,12 @@
 import { Link, Outlet, useLocation } from "react-router";
-import { LayoutDashboard, Package, Box, ShieldCheck, Wrench, Menu, Layers, PackageOpen } from "lucide-react";
+import { LayoutDashboard, Package, Box, ShieldCheck, Wrench, Menu, Layers, PackageOpen, LogOut } from "lucide-react";
 import { useState } from "react";
+import { logout, getUsername } from "../../services/authService";
 
 export function Layout() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const username = getUsername();
 
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -33,19 +35,28 @@ export function Layout() {
                 <Package className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="font-semibold text-gray-900">IndustrialPro</h1>
+                <h1 className="font-semibold text-gray-900">SGIPro</h1>
                 <p className="text-xs text-gray-500">Sistema de Manufatura</p>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-medium text-gray-900">Admin</p>
+              <p className="text-sm font-medium text-gray-900">{username || "Admin"}</p>
               <p className="text-xs text-gray-500">Gerente de Produção</p>
             </div>
             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-white font-medium">A</span>
+              <span className="text-white font-medium">
+                {username?.charAt(0).toUpperCase() || "A"}
+              </span>
             </div>
+            <button
+              onClick={logout}
+              className="p-2 text-gray-500 hover:bg-gray-100 hover:text-red-600 rounded-lg transition-colors"
+              title="Sair"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </header>
